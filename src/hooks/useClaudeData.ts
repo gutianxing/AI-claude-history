@@ -1,0 +1,183 @@
+import { useQuery } from '@tanstack/react-query'
+
+const API_BASE = '/api'
+
+// Fetch history
+export function useHistory() {
+  return useQuery({
+    queryKey: ['history'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/history`)
+      if (!res.ok) throw new Error('Failed to fetch history')
+      return res.json()
+    },
+  })
+}
+
+// Fetch projects
+export function useProjects() {
+  return useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/projects`)
+      if (!res.ok) throw new Error('Failed to fetch projects')
+      return res.json()
+    },
+  })
+}
+
+// Fetch project sessions
+export function useProjectSessions(projectName: string) {
+  return useQuery({
+    queryKey: ['projects', projectName, 'sessions'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectName)}/sessions`)
+      if (!res.ok) throw new Error('Failed to fetch sessions')
+      return res.json()
+    },
+    enabled: !!projectName,
+  })
+}
+
+// Fetch session detail
+export function useSession(sessionId: string) {
+  return useQuery({
+    queryKey: ['sessions', sessionId],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/sessions/${sessionId}`)
+      if (!res.ok) throw new Error('Failed to fetch session')
+      return res.json()
+    },
+    enabled: !!sessionId,
+  })
+}
+
+// Fetch config
+export function useConfig() {
+  return useQuery({
+    queryKey: ['config'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/config`)
+      if (!res.ok) throw new Error('Failed to fetch config')
+      return res.json()
+    },
+  })
+}
+
+// Fetch MCP servers
+export function useMcpServers() {
+  return useQuery({
+    queryKey: ['mcp-servers'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/mcp-servers`)
+      if (!res.ok) throw new Error('Failed to fetch MCP servers')
+      return res.json()
+    },
+  })
+}
+
+// Fetch agents
+export function useAgents() {
+  return useQuery({
+    queryKey: ['agents'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/agents`)
+      if (!res.ok) throw new Error('Failed to fetch agents')
+      return res.json()
+    },
+  })
+}
+
+// Fetch skills
+export function useSkills() {
+  return useQuery({
+    queryKey: ['skills'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/skills`)
+      if (!res.ok) throw new Error('Failed to fetch skills')
+      return res.json()
+    },
+  })
+}
+
+// Fetch stats
+export function useStats() {
+  return useQuery({
+    queryKey: ['stats'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/stats`)
+      if (!res.ok) throw new Error('Failed to fetch stats')
+      return res.json()
+    },
+  })
+}
+
+// Fetch all messages with pagination
+interface MessagesResponse {
+  data: Array<{
+    uuid: string
+    role: string
+    content: string
+    contentBlocks?: Array<{ type: string; text?: string; thinking?: string; name?: string; input?: Record<string, unknown>; content?: string | Record<string, unknown> }>
+    sessionId: string
+    project: string
+    timestamp?: string
+    model?: string
+  }>
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
+interface MessagesParams {
+  page?: number
+  pageSize?: number
+  search?: string
+  role?: string
+}
+
+export function useAllMessages(params: MessagesParams = {}) {
+  const { page = 1, pageSize = 20, search = '', role = 'all' } = params
+
+  return useQuery({
+    queryKey: ['all-messages', page, pageSize, search, role],
+    queryFn: async (): Promise<MessagesResponse> => {
+      const queryParams = new URLSearchParams({
+        page: String(page),
+        pageSize: String(pageSize),
+        search,
+        role
+      })
+      const res = await fetch(`${API_BASE}/all-messages?${queryParams}`)
+      if (!res.ok) throw new Error('Failed to fetch all messages')
+      return res.json()
+    },
+    placeholderData: (previousData) => previousData,
+  })
+}
+
+// Fetch all sessions
+export function useAllSessions() {
+  return useQuery({
+    queryKey: ['all-sessions'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/all-sessions`)
+      if (!res.ok) throw new Error('Failed to fetch all sessions')
+      return res.json()
+    },
+    staleTime: 0, // Always refetch when requested
+  })
+}
+
+// Fetch active sessions (running Claude Code windows)
+export function useActiveSessions() {
+  return useQuery({
+    queryKey: ['active-sessions'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/active-sessions`)
+      if (!res.ok) throw new Error('Failed to fetch active sessions')
+      return res.json()
+    },
+  })
+}

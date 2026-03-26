@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(curl -s http://localhost:3001/api/stats)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(npx tsc:*)",
+      "Bash(netstat -ano)",
+      "Bash(curl -s http://localhost:3001/api/all-sessions)",
+      "Bash(mv \"D:/ywfan/workspace/claude_plugins/chat_log/.claude/skills/feature-implementer/SKILL.md\" \"D:/ywfan/workspace/claude_plugins/chat_log/skills/feature-implementer/\")",
+      "Bash(rm -rf \"D:/ywfan/workspace/claude_plugins/chat_log/.claude/skills/feature-implementer\")",
+      "WebSearch",
+      "Bash(npm info:*)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\(''''mcpServers'''', {}\\), indent=2\\)\\)\")",
+      "Bash(xargs grep:*)",
+      "Bash(head -100 C:/Users/dell/.claude/projects/D--ywfan-workspace-claude-plugins-chat-log/*.jsonl)",
+      "Bash(grep -o \"\"type\"\":\"\"[^\"\"]*\"\" C:/Users/dell/.claude/projects/D--ywfan-workspace-claude-plugins-chat-log/*.jsonl)",
+      "Bash(grep -A20 \"\"sessionId\"\":\"\"4dee2b31-77dc-45ae-9b22-58eb5cf87ff8\"\" C:/Users/dell/.claude/projects/*/*.jsonl)",
+      "Bash(grep -o \"\"project\"\":\"\"[^\"\"]*\"\" C:/Users/dell/.claude/history.jsonl)",
+      "Bash(node)",
+      "Bash(curl -s http://localhost:3001/api/projects)",
+      "Bash(findstr \":3001 :5173 :5174\")",
+      "Bash(findstr LISTENING)",
+      "Bash(taskkill:*)",
+      "Bash(head -3 ~/.claude/projects/C--Users-dell/*.jsonl)",
+      "Bash(head -20 ~/.claude/projects/C--Users-dell--claude-plugins--chat-log/*.jsonl)",
+      "Bash(cat ~/.claude/projects/C--Users-dell--claude-plugins--chat-log/*.jsonl)",
+      "Bash(ls ~/.claude/projects/C--Users-dell--claude-plugins--chat-log/*.jsonl)",
+      "Bash(xargs head:*)",
+      "Bash(xargs cat:*)",
+      "Bash(find ~/.claude/projects -name *.jsonl -type f)",
+      "Bash(curl -s -X POST http://localhost:3001/api/summarize-session -H \"Content-Type: application/json\" -d '{\"\"\"\"sessionId\"\"\"\": \"\"\"\"test\"\"\"\"}')",
+      "Bash(curl:*)",
+      "Bash(findstr \":3001\")",
+      "Bash(curl -s -X POST http://localhost:3001/api/summarize-session -H \"Content-Type: application/json\" -d '{\"\"\"\"sessionId\"\"\"\": \"\"\"\"093405e3-6a8d-464e-867f-1e256bd21267\"\"\"\"}')",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f\"\"{s[''''sessionId''''][:8]}... desc: {bool\\(s.get\\(''''description''''\\)\\)} hasAnalysis: {s.get\\(''''hasAnalysis''''\\)}\"\"\\) for s in data if s.get\\(''''description''''\\) or s.get\\(''''hasAnalysis''''\\)]\")",
+      "Bash(findstr \":5173\")",
+      "Bash(npm ls:*)"
+    ]
+  }
+}
