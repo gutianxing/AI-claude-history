@@ -10,6 +10,7 @@ import { Button, Modal, Spin, Card, Descriptions, Tag } from 'antd'
 import { DownloadOutlined, FileMarkdownOutlined } from '@ant-design/icons'
 
 const MESSAGES_PER_PAGE = 10
+const RECENT_MESSAGES_COUNT = 30 // For active sessions
 
 function MessageContent({ content }: { content: string | Record<string, unknown>[] }) {
   const codeRef = useRef<HTMLDivElement>(null)
@@ -135,6 +136,7 @@ export default function SessionDetail() {
   const [summarizing, setSummarizing] = useState(false)
   const [visibleCount, setVisibleCount] = useState(MESSAGES_PER_PAGE)
   const loadMoreRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [analysisData, setAnalysisData] = useState<{
     purpose?: string
     improvements?: string
@@ -157,8 +159,11 @@ export default function SessionDetail() {
   }, [isActiveSession, refetch])
 
   const messages = session?.messages || []
-  const visibleMessages = messages.slice(0, visibleCount)
-  const hasMore = visibleCount < messages.length
+  // For active sessions: show only recent messages, normal sessions: paginate from start
+  const visibleMessages = isActiveSession
+    ? messages.slice(-RECENT_MESSAGES_COUNT)
+    : messages.slice(0, visibleCount)
+  const hasMore = !isActiveSession && visibleCount < messages.length
 
   // Fetch analysis data
   useEffect(() => {
@@ -208,6 +213,19 @@ export default function SessionDetail() {
   useEffect(() => {
     setVisibleCount(MESSAGES_PER_PAGE)
   }, [id])
+
+  // Scroll to bottom for active sessions
+  useEffect(() => {
+    if (isActiveSession && scrollContainerRef.current && visibleMessages.length > 0) {
+      // Small delay to ensure content is rendered
+      setTimeout(() => {
+        scrollContainerRef.current?.scrollTo({
+          top: scrollContainerRef.current.scrollHeight,
+          behavior: 'smooth'
+        })
+      }, 100)
+    }
+  }, [isActiveSession, visibleMessages.length])
 
   const handleSummarize = async () => {
     if (!session?.messages) return
@@ -350,7 +368,7 @@ export default function SessionDetail() {
       </div>
 
       {/* Scrollable Content Area */}
-      <div className="flex-1 min-h-0 overflow-auto mt-4">
+      <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-auto mt-4">
         {/* AI Analysis Card */}
         {analysisData.hasAnalysis && !isActiveSession && (
           <div className="mb-4">
@@ -454,9 +472,16 @@ export default function SessionDetail() {
           )}
 
           {/* All loaded indicator */}
-          {!hasMore && messages.length > MESSAGES_PER_PAGE && (
+          {!hasMore && messages.length > MESSAGES_PER_PAGE && !isActiveSession && (
             <div className="text-center py-4 text-gray-400 dark:text-gray-500 text-sm">
               已加载全部 {messages.length} 条消息
+            </div>
+          )}
+
+          {/* Active session message count indicator */}
+          {isActiveSession && messages.length > RECENT_MESSAGES_COUNT && (
+            <div className="text-center py-4 text-gray-400 dark:text-gray-500 text-sm">
+              显示最近 {RECENT_MESSAGES_COUNT} 条消息 (共 {messages.length} 条)
             </div>
           )}
         </div>
