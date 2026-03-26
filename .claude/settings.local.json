@@ -37,7 +37,10 @@
       "Bash(curl -s -X POST http://localhost:3001/api/summarize-session -H \"Content-Type: application/json\" -d '{\"\"\"\"sessionId\"\"\"\": \"\"\"\"093405e3-6a8d-464e-867f-1e256bd21267\"\"\"\"}')",
       "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f\"\"{s[''''sessionId''''][:8]}... desc: {bool\\(s.get\\(''''description''''\\)\\)} hasAnalysis: {s.get\\(''''hasAnalysis''''\\)}\"\"\\) for s in data if s.get\\(''''description''''\\) or s.get\\(''''hasAnalysis''''\\)]\")",
       "Bash(findstr \":5173\")",
-      "Bash(npm ls:*)"
+      "Bash(npm ls:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }
