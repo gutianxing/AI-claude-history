@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github-dark.css'
-import React, { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, Modal, Spin, Card, Descriptions, Tag } from 'antd'
 import { DownloadOutlined, FileMarkdownOutlined } from '@ant-design/icons'
 
@@ -57,24 +57,20 @@ function MessageContent({ content }: { content: string | Record<string, unknown>
 
             if (textContent && textContent.length > 500) {
               return (
-                <React.Fragment key={i}>
-                  <details className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded p-3">
-                    <summary className="cursor-pointer text-gray-800 dark:text-gray-200 font-medium">
-                      📄 文本内容 ({textContent.length} 字符)
-                    </summary>
-                    <div className="mt-2 markdown-body prose prose-sm max-w-none">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent}</ReactMarkdown>
-                    </div>
-                  </details>
-                </React.Fragment>
+                <details key={i} className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded p-3">
+                  <summary className="cursor-pointer text-gray-800 dark:text-gray-200 font-medium">
+                    📄 文本内容 ({textContent.length} 字符)
+                  </summary>
+                  <div className="mt-2 markdown-body prose prose-sm max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent}</ReactMarkdown>
+                  </div>
+                </details>
               )
             }
             return (
-              <React.Fragment key={i}>
-                <div className="markdown-body prose prose-sm max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent || ''}</ReactMarkdown>
-                </div>
-              </React.Fragment>
+              <div key={i} className="markdown-body prose prose-sm max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent || ''}</ReactMarkdown>
+              </div>
             )
           }
           case 'thinking':

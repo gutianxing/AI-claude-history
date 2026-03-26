@@ -6,13 +6,8 @@ import { DataTable } from '../components/DataTable'
 import { Input, Tag, Button } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-
-interface HistoryItem {
-  display: string
-  timestamp: number
-  project: string
-  sessionId: string
-}
+import type { HistoryEntry } from '../types'
+import { getProjectName, truncateSessionId } from '../utils'
 
 // Extract commands from display text (only /xx and @xx patterns)
 function extractCommand(display: string): string | null {
@@ -28,20 +23,20 @@ export default function Commands() {
   // Filter only command entries (those with / or @)
   const commandHistory = useMemo(() => {
     if (!history) return []
-    return history.filter((entry: HistoryItem) => {
+    return history.filter((entry) => {
       const cmd = extractCommand(entry.display)
       return cmd !== null
     })
   }, [history])
 
-  const filteredHistory = commandHistory?.filter((entry: HistoryItem) =>
+  const filteredHistory = commandHistory?.filter((entry) =>
     entry.display.toLowerCase().includes(searchTerm.toLowerCase()) ||
     entry.project.toLowerCase().includes(searchTerm.toLowerCase())
   ) || []
 
   // Group by command
   const commandGroups: Record<string, number> = {}
-  filteredHistory.forEach((entry: HistoryItem) => {
+  filteredHistory.forEach((entry) => {
     const cmd = extractCommand(entry.display)
     if (cmd) {
       commandGroups[cmd] = (commandGroups[cmd] || 0) + 1
@@ -52,7 +47,7 @@ export default function Commands() {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 12)
 
-  const columns: ColumnsType<HistoryItem> = [
+  const columns: ColumnsType<HistoryEntry> = [
     {
       title: '命令',
       dataIndex: 'display',
@@ -79,7 +74,7 @@ export default function Commands() {
       width: 150,
       render: (project: string) => (
         <Link to={`/projects/${encodeURIComponent(project)}`} className="text-indigo-600 hover:text-indigo-800 text-xs">
-          {project.split(/[\\/]/).pop()}
+          {getProjectName(project)}
         </Link>
       ),
     },
@@ -97,7 +92,7 @@ export default function Commands() {
       width: 120,
       render: (sessionId: string) => (
         <Link to={`/sessions/${sessionId}`} className="text-indigo-600 hover:text-indigo-800 text-xs font-mono">
-          {sessionId.slice(0, 8)}...
+          {truncateSessionId(sessionId)}
         </Link>
       ),
     },

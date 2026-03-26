@@ -7,48 +7,10 @@ import { Input, Tag, Tabs, Button, Drawer } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import ReactMarkdown from 'react-markdown'
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table'
+import type { ContentBlock, MessageItem, SessionItem, ProjectItem, HistoryEntry } from '../types'
+import { getProjectName, truncateSessionId } from '../utils'
 
-interface ContentBlock {
-  type: string
-  text?: string
-  thinking?: string
-  name?: string
-  input?: Record<string, unknown>
-  content?: string | Record<string, unknown>
-}
-
-interface MessageItem {
-  uuid: string
-  role: string
-  content: string
-  contentBlocks?: ContentBlock[]
-  sessionId: string
-  project: string
-  timestamp?: string
-  model?: string
-}
-
-interface SessionItem {
-  sessionId: string
-  project: string
-  messageCount: number
-  firstMessage?: string
-  startedAt?: number
-}
-
-interface HistoryItem {
-  display: string
-  timestamp: number
-  project: string
-  sessionId: string
-}
-
-interface ProjectItem {
-  name: string
-  path: string
-  sessionCount: number
-  lastActivity?: string
-}
+type HistoryItem = HistoryEntry
 
 export default function Messages() {
   const [activeTab, setActiveTab] = useState('messages')
@@ -191,7 +153,7 @@ export default function Messages() {
       width: 120,
       render: (sessionId: string) => (
         <Link to={`/sessions/${sessionId}`} className="text-indigo-600 hover:text-indigo-800 font-mono text-xs">
-          {sessionId.slice(0, 8)}...
+          {truncateSessionId(sessionId)}
         </Link>
       ),
     },
@@ -200,7 +162,7 @@ export default function Messages() {
       dataIndex: 'project',
       key: 'project',
       width: 120,
-      render: (project: string) => <span className="text-xs text-gray-500 dark:text-gray-400">{project.split(/[\\/]/).pop()}</span>,
+      render: (project: string) => <span className="text-xs text-gray-500 dark:text-gray-400">{getProjectName(project)}</span>,
     },
     {
       title: '模型',
@@ -234,7 +196,7 @@ export default function Messages() {
       width: 150,
       render: (sessionId: string) => (
         <Link to={`/sessions/${sessionId}`} className="text-indigo-600 hover:text-indigo-800 font-mono">
-          {sessionId.slice(0, 8)}...
+          {truncateSessionId(sessionId)}
         </Link>
       ),
     },
@@ -243,7 +205,7 @@ export default function Messages() {
       dataIndex: 'project',
       key: 'project',
       width: 150,
-      render: (project: string) => project.split(/[\\/]/).pop(),
+      render: (project: string) => getProjectName(project),
     },
     {
       title: '首条消息',
@@ -294,7 +256,7 @@ export default function Messages() {
       dataIndex: 'project',
       key: 'project',
       width: 150,
-      render: (project: string) => <span className="text-xs text-gray-500 dark:text-gray-400">{project.split(/[\\/]/).pop()}</span>,
+      render: (project: string) => <span className="text-xs text-gray-500 dark:text-gray-400">{getProjectName(project)}</span>,
     },
     {
       title: '时间',
@@ -308,7 +270,7 @@ export default function Messages() {
       dataIndex: 'sessionId',
       key: 'sessionId',
       width: 120,
-      render: (sessionId: string) => <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">{sessionId.slice(0, 8)}...</span>,
+      render: (sessionId: string) => <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">{truncateSessionId(sessionId)}</span>,
     },
   ]
 

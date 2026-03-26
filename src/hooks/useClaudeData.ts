@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import type { MessagesResponse, MessagesParams, SessionItem, ProjectItem, HistoryEntry } from '../types'
 
 const API_BASE = '/api'
 
@@ -9,7 +10,7 @@ export function useHistory() {
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/history`)
       if (!res.ok) throw new Error('Failed to fetch history')
-      return res.json()
+      return res.json() as Promise<HistoryEntry[]>
     },
   })
 }
@@ -21,7 +22,7 @@ export function useProjects() {
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/projects`)
       if (!res.ok) throw new Error('Failed to fetch projects')
-      return res.json()
+      return res.json() as Promise<ProjectItem[]>
     },
   })
 }
@@ -113,30 +114,6 @@ export function useStats() {
 }
 
 // Fetch all messages with pagination
-interface MessagesResponse {
-  data: Array<{
-    uuid: string
-    role: string
-    content: string
-    contentBlocks?: Array<{ type: string; text?: string; thinking?: string; name?: string; input?: Record<string, unknown>; content?: string | Record<string, unknown> }>
-    sessionId: string
-    project: string
-    timestamp?: string
-    model?: string
-  }>
-  total: number
-  page: number
-  pageSize: number
-  totalPages: number
-}
-
-interface MessagesParams {
-  page?: number
-  pageSize?: number
-  search?: string
-  role?: string
-}
-
 export function useAllMessages(params: MessagesParams = {}) {
   const { page = 1, pageSize = 20, search = '', role = 'all' } = params
 
@@ -164,7 +141,7 @@ export function useAllSessions() {
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/all-sessions`)
       if (!res.ok) throw new Error('Failed to fetch all sessions')
-      return res.json()
+      return res.json() as Promise<SessionItem[]>
     },
     staleTime: 0, // Always refetch when requested
   })

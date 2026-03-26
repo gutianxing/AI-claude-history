@@ -1,7 +1,6 @@
 // History entry from history.jsonl
 export interface HistoryEntry {
   display: string
-  pastedContents: Record<string, unknown>
   timestamp: number
   project: string
   sessionId: string
@@ -118,4 +117,56 @@ export interface Stats {
   projectUsage: Record<string, number>
   dailyActivity: { date: string; count: number }[]
   topCommands: { command: string; count: number }[]
+}
+
+// Messages list item (for messages tab)
+export interface MessageItem {
+  uuid: string
+  role: string
+  content: string
+  contentBlocks?: ContentBlock[]
+  sessionId: string
+  project: string
+  timestamp?: string
+  model?: string
+}
+
+// Messages API response
+export interface MessagesResponse {
+  data: MessageItem[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
+// Messages API params
+export interface MessagesParams {
+  page?: number
+  pageSize?: number
+  search?: string
+  role?: string
+}
+
+// Session list item
+export interface SessionItem {
+  sessionId: string
+  sessionName?: string
+  project: string
+  messageCount: number
+  firstMessage?: string
+  startedAt?: number
+  description?: string
+  hasAnalysis?: boolean
+  isImported?: boolean
+  isFavorite?: boolean
+  tags?: string[]
+}
+
+// Project list item
+export interface ProjectItem {
+  name: string
+  path: string
+  sessionCount: number
+  lastActivity?: string
 }
