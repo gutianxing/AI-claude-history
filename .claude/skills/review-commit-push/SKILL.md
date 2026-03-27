@@ -1,6 +1,6 @@
 ---
 name: review-commit-push
-description: 代码审查后提交并推送的完整工作流。当用户说"提交代码"、"帮我提交"、"code review 后提交"、"审查后推送"、"提交并推送"等时触发此 skill。此 skill 会先审查代码变更，然后创建提交并推送到远程仓库。
+description: 代码审查后提交并推送的完整工作流。当用户说"提交代码"、"帮我提交"、"code review 后提交"、"审查后推送"、"提交并推送"、"推送代码"等时触发此 skill。此 skill 会先审查代码变更，然后创建提交并自动推送到远程仓库。提交后无需确认直接推送。
 ---
 
 # Review-Commit-Push 工作流
