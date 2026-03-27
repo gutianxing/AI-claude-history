@@ -3,12 +3,22 @@ import { Link } from 'react-router-dom'
 import { useAllSessions, useSession } from '../hooks/useClaudeData'
 import { format } from 'date-fns'
 import { DataTable } from '../components/DataTable'
-import { Input, Button, Modal, Spin, message, Drawer, Upload, Popconfirm, Tag, Select, InputRef } from 'antd'
-import { DownloadOutlined, RobotOutlined, FileTextOutlined, ReloadOutlined, FileMarkdownOutlined, UploadOutlined, DeleteOutlined, EditOutlined, StarOutlined, StarFilled, TagOutlined, TagsOutlined, FilterOutlined } from '@ant-design/icons'
+import { Input, Button, Modal, Spin, message, Drawer, Upload, Popconfirm, Tag, Select, InputRef, DatePicker } from 'antd'
+import { DownloadOutlined, RobotOutlined, FileTextOutlined, ReloadOutlined, FileMarkdownOutlined, UploadOutlined, DeleteOutlined, EditOutlined, StarOutlined, StarFilled, TagOutlined, TagsOutlined, FilterOutlined, ExportOutlined } from '@ant-design/icons'
+import {
+  FileText,
+  Target,
+  Lightbulb,
+  ClipboardList,
+  Inbox,
+  FolderOpen,
+} from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile } from 'antd/es/upload'
+import type { Dayjs } from 'dayjs'
 import React from 'react'
+import dayjs from 'dayjs'
 
 interface SessionItem {
   sessionId: string
@@ -23,6 +33,7 @@ interface SessionItem {
   isImported?: boolean
   isFavorite?: boolean
   tags?: string[]
+  models?: string[]
 }
 
 // Session Action Buttons Component
@@ -351,16 +362,41 @@ export default function Sessions() {
   // Tag filter state
   const [filterTag, setFilterTag] = useState<string | null>(null)
 
+  // Date range filter state
+  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null)
+
+  // Model filter state
+  const [filterModel, setFilterModel] = useState<string | null>(null)
+
+  // Project filter state
+  const [filterProject, setFilterProject] = useState<string | null>(null)
+
+  // Batch selection state
+  const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([])
+  const [batchDeleting, setBatchDeleting] = useState(false)
+
   // Fetch all tags for filter dropdown
   const [availableTags, setAvailableTags] = useState<string[]>([])
+
+  // Fetch all models for filter dropdown
+  const [availableModels, setAvailableModels] = useState<string[]>([])
+
+  // Fetch all projects for filter dropdown
+  const [availableProjects, setAvailableProjects] = useState<string[]>([])
 
   useEffect(() => {
     if (sessions) {
       const tags = new Set<string>()
+      const models = new Set<string>()
+      const projects = new Set<string>()
       sessions.forEach((s: SessionItem) => {
         s.tags?.forEach(tag => tags.add(tag))
+        s.models?.forEach(model => models.add(model))
+        if (s.project) projects.add(s.project)
       })
       setAvailableTags(Array.from(tags).sort())
+      setAvailableModels(Array.from(models).sort())
+      setAvailableProjects(Array.from(projects).sort())
     }
   }, [sessions])
 
@@ -501,6 +537,76 @@ export default function Sessions() {
     }
   }
 
+  // Batch export sessions as JSON
+  const handleBatchExportJSON = async () => {
+    if (selectedSessionIds.length === 0) {
+      message.warning('请先选择要导出的会话')
+      return
+    }
+
+    try {
+      const exportData = []
+      for (const sessionId of selectedSessionIds) {
+        const res = await fetch(`/api/sessions/${sessionId}`)
+        if (res.ok) {
+          const data = await res.json()
+          exportData.push(data)
+        }
+      }
+
+      const dataStr = JSON.stringify(exportData, null, 2)
+      const blob = new Blob([dataStr], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `sessions-batch-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      message.success(`已导出 ${exportData.length} 个会话`)
+    } catch {
+      message.error('批量导出失败')
+    }
+  }
+
+  // Batch delete imported sessions
+  const handleBatchDelete = async () => {
+    if (selectedSessionIds.length === 0) {
+      message.warning('请先选择要删除的会话')
+      return
+    }
+
+    // Filter to only imported sessions (native sessions cannot be deleted)
+    const selectedSessions = sessions?.filter((s: SessionItem) => selectedSessionIds.includes(s.sessionId)) || []
+    const importedSessionIds = selectedSessions.filter((s: SessionItem) => s.isImported).map((s: SessionItem) => s.sessionId)
+    const nativeCount = selectedSessionIds.length - importedSessionIds.length
+
+    if (importedSessionIds.length === 0) {
+      message.warning('选中的都是原生会话，无法删除')
+      return
+    }
+
+    setBatchDeleting(true)
+    try {
+      let successCount = 0
+      for (const sessionId of importedSessionIds) {
+        const res = await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' })
+        if (res.ok) successCount++
+      }
+
+      if (nativeCount > 0) {
+        message.success(`已删除 ${successCount} 个导入会话，跳过 ${nativeCount} 个原生会话`)
+      } else {
+        message.success(`已删除 ${successCount} 个会话`)
+      }
+      setSelectedSessionIds([])
+      refetch()
+    } catch {
+      message.error('批量删除失败')
+    } finally {
+      setBatchDeleting(false)
+    }
+  }
+
   const handleDescriptionClick = async (description: string, sessionId: string) => {
     setSelectedDescription(description)
     setSelectedSessionId(sessionId)
@@ -604,7 +710,26 @@ export default function Sessions() {
       s.project.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (s.description && s.description.toLowerCase().includes(searchTerm.toLowerCase()))
     const matchesTag = !filterTag || (s.tags && s.tags.includes(filterTag))
-    return matchesSearch && matchesTag
+    const matchesModel = !filterModel || (s.models && s.models.includes(filterModel))
+    const matchesProject = !filterProject || s.project === filterProject
+
+    // Date range filter
+    let matchesDate = true
+    if (dateRange && dateRange[0] && dateRange[1] && s.startedAt) {
+      const sessionDate = dayjs(s.startedAt)
+      matchesDate = sessionDate.isAfter(dateRange[0].startOf('day')) &&
+                    sessionDate.isBefore(dateRange[1].endOf('day'))
+    } else if (dateRange && (dateRange[0] || dateRange[1])) {
+      // If only one date is selected, still filter
+      if (dateRange[0] && s.startedAt) {
+        matchesDate = dayjs(s.startedAt).isAfter(dateRange[0].startOf('day'))
+      }
+      if (dateRange[1] && s.startedAt) {
+        matchesDate = dayjs(s.startedAt).isBefore(dateRange[1].endOf('day'))
+      }
+    }
+
+    return matchesSearch && matchesTag && matchesModel && matchesProject && matchesDate
   }) || [])
 
   const columns: ColumnsType<SessionItem> = [
@@ -657,8 +782,13 @@ export default function Sessions() {
       key: 'isImported',
       width: 100,
       render: (isImported?: boolean) => (
-        <span className={`text-xs px-2 py-1 rounded ${isImported ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
-          {isImported ? '📥 导入' : '原生'}
+        <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded ${
+          isImported
+            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+            : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+        }`}>
+          {isImported ? <Inbox className="w-3 h-3" /> : <FolderOpen className="w-3 h-3" />}
+          {isImported ? '导入' : '原生'}
         </span>
       ),
       filters: [
@@ -752,20 +882,44 @@ export default function Sessions() {
             icon={<StarFilled className="text-yellow-500" />}
             onClick={() => setFavoritesDrawerOpen(true)}
           >
-            收藏会话 {favoriteSessions.length > 0 && `(${favoriteSessions.length})`}
+            收藏 {favoriteSessions.length > 0 && `(${favoriteSessions.length})`}
           </Button>
           <Button
             icon={<TagsOutlined />}
             onClick={handleOpenTagManage}
           >
-            管理标签
+            标签
           </Button>
           <Button
             icon={<UploadOutlined />}
             onClick={() => setImportModalOpen(true)}
           >
-            导入会话
+            导入
           </Button>
+          <Button
+            icon={<ExportOutlined />}
+            onClick={handleBatchExportJSON}
+            disabled={selectedSessionIds.length === 0}
+          >
+            导出{selectedSessionIds.length > 0 && ` (${selectedSessionIds.length})`}
+          </Button>
+          <Popconfirm
+            title="批量删除"
+            description="确定要删除选中的导入会话吗？原生会话不会被删除。"
+            onConfirm={handleBatchDelete}
+            okText="删除"
+            cancelText="取消"
+            okButtonProps={{ danger: true, loading: batchDeleting }}
+          >
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              loading={batchDeleting}
+              disabled={selectedSessionIds.length === 0}
+            >
+              删除{selectedSessionIds.length > 0 && ` (${selectedSessionIds.length})`}
+            </Button>
+          </Popconfirm>
           <Button
             type="primary"
             icon={<ReloadOutlined />}
@@ -786,6 +940,16 @@ export default function Sessions() {
             allowClear
           />
         </div>
+        <div className="flex items-center gap-2">
+          <span className="text-gray-500 text-sm whitespace-nowrap">日期范围:</span>
+          <DatePicker.RangePicker
+            value={dateRange}
+            onChange={(dates) => setDateRange(dates)}
+            style={{ minWidth: 240 }}
+            placeholder={['开始日期', '结束日期']}
+            allowClear
+          />
+        </div>
         {availableTags.length > 0 && (
           <div className="flex items-center gap-2">
             <FilterOutlined className="text-gray-400" />
@@ -799,6 +963,35 @@ export default function Sessions() {
             />
           </div>
         )}
+        {availableModels.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Select
+              allowClear
+              placeholder="按模型筛选"
+              value={filterModel}
+              onChange={setFilterModel}
+              style={{ minWidth: 200 }}
+              options={availableModels.map(model => ({ label: model, value: model }))}
+            />
+          </div>
+        )}
+        {availableProjects.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Select
+              allowClear
+              placeholder="按项目筛选"
+              value={filterProject}
+              onChange={setFilterProject}
+              style={{ minWidth: 200 }}
+              showSearch
+              optionFilterProp="label"
+              options={availableProjects.map(project => ({
+                label: project.split(/[\\/]/).pop(),
+                value: project
+              }))}
+            />
+          </div>
+        )}
       </div>
 
       <DataTable
@@ -808,7 +1001,16 @@ export default function Sessions() {
         pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 个会话` }}
         size="middle"
         bordered
-        scroll={{ y: 500 }}
+        scroll={{ x: 1200, y: 'calc(100vh - 350px)' }}
+        rowSelection={{
+          selectedRowKeys: selectedSessionIds,
+          onChange: (keys) => setSelectedSessionIds(keys as string[]),
+          selections: [
+            { key: 'all', text: '全选当前页', onSelect: (changeableRowKeys) => setSelectedSessionIds(changeableRowKeys as string[]) },
+            { key: 'invert', text: '反选当前页', onSelect: (changeableRowKeys) => setSelectedSessionIds(changeableRowKeys as string[]) },
+            { key: 'none', text: '清空选择', onSelect: () => setSelectedSessionIds([]) },
+          ],
+        }}
       />
 
       <Drawer
@@ -831,8 +1033,11 @@ export default function Sessions() {
       >
         <div className="space-y-4">
           {/* Description */}
-          <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">📝 会话描述</h3>
+          <div className="bg-slate-50 dark:bg-slate-700 rounded-lg p-4">
+            <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-1">
+              <FileText className="w-4 h-4" />
+              会话描述
+            </h3>
             <div className="prose prose-sm max-w-none">
               <ReactMarkdown>{selectedDescription}</ReactMarkdown>
             </div>
@@ -842,7 +1047,7 @@ export default function Sessions() {
           {loadingAnalysis && (
             <div className="text-center py-4">
               <Spin size="small" />
-              <span className="ml-2 text-gray-500 dark:text-gray-400">加载分析数据...</span>
+              <span className="ml-2 text-slate-500 dark:text-slate-400">加载分析数据...</span>
             </div>
           )}
 
@@ -850,7 +1055,10 @@ export default function Sessions() {
             <>
               {analysisData.purpose && (
                 <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-2">🎯 主要目的</h3>
+                  <h3 className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-2 flex items-center gap-1">
+                    <Target className="w-4 h-4" />
+                    主要目的
+                  </h3>
                   <div className="prose prose-sm max-w-none">
                     <ReactMarkdown>{analysisData.purpose}</ReactMarkdown>
                   </div>
@@ -859,7 +1067,10 @@ export default function Sessions() {
 
               {analysisData.improvements && (
                 <div className="bg-orange-50 dark:bg-orange-900/30 rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-orange-600 dark:text-orange-400 mb-2">💡 改进建议</h3>
+                  <h3 className="text-sm font-medium text-orange-600 dark:text-orange-400 mb-2 flex items-center gap-1">
+                    <Lightbulb className="w-4 h-4" />
+                    改进建议
+                  </h3>
                   <div className="prose prose-sm max-w-none">
                     <ReactMarkdown>{analysisData.improvements}</ReactMarkdown>
                   </div>
@@ -868,7 +1079,10 @@ export default function Sessions() {
 
               {analysisData.summary && (
                 <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">📋 详细总结</h3>
+                  <h3 className="text-sm font-medium text-green-600 dark:text-green-400 mb-2 flex items-center gap-1">
+                    <ClipboardList className="w-4 h-4" />
+                    详细总结
+                  </h3>
                   <div className="prose prose-sm max-w-none">
                     <ReactMarkdown>{analysisData.summary}</ReactMarkdown>
                   </div>

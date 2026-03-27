@@ -2,6 +2,7 @@ import { useConfig, useMcpServers, useAgents, useSkills } from '../hooks/useClau
 import { DataTable } from '../components/DataTable'
 import { Tabs, Tag, Button } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
+import { Settings, Server, Users, Zap, Puzzle, Variable, Cpu } from 'lucide-react'
 import type { ColumnsType } from 'antd/es/table'
 
 interface McpServer {
@@ -246,13 +247,23 @@ export default function Config() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">配置信息</h1>
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
+            <Settings className="w-6 h-6 text-slate-600 dark:text-slate-400" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">配置信息</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">MCP 服务器、Agents、Skills 和环境变量</p>
+          </div>
+        </div>
         <Button
           type="primary"
           icon={<ReloadOutlined />}
           onClick={handleRefresh}
           loading={isLoading}
+          className="bg-green-600 hover:bg-green-700 border-green-600"
         >
           刷新
         </Button>
@@ -260,38 +271,66 @@ export default function Config() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400">当前模型</div>
-          <div className="mt-1">
-            <Tag color="indigo" className="text-base">{config?.model || 'unknown'}</Tag>
+        <div className="stat-card border-l-4 border-indigo-500">
+          <div className="flex items-center gap-3">
+            <Cpu className="w-5 h-5 text-indigo-500" />
+            <div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">当前模型</div>
+              <div className="text-sm font-semibold text-slate-800 dark:text-white truncate">{config?.model || 'unknown'}</div>
+            </div>
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400">MCP 服务器</div>
-          <div className="text-2xl font-bold text-blue-600 mt-1">{mcpServers?.length || 0}</div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400">Agents</div>
-          <div className="text-2xl font-bold text-purple-600 mt-1">{agents?.length || 0}</div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400">Skills</div>
-          <div className="text-2xl font-bold text-cyan-600 mt-1">{skills?.length || 0}</div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400">已启用插件</div>
-          <div className="text-2xl font-bold text-green-600 mt-1">
-            {Object.values(config?.enabledPlugins || {}).filter(Boolean).length}
+        <div className="stat-card border-l-4 border-blue-500">
+          <div className="flex items-center gap-3">
+            <Server className="w-5 h-5 text-blue-500" />
+            <div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">MCP 服务器</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mcpServers?.length || 0}</div>
+            </div>
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400">环境变量</div>
-          <div className="text-2xl font-bold text-orange-600 mt-1">{envData.length}</div>
+        <div className="stat-card border-l-4 border-purple-500">
+          <div className="flex items-center gap-3">
+            <Users className="w-5 h-5 text-purple-500" />
+            <div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">Agents</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">{agents?.length || 0}</div>
+            </div>
+          </div>
+        </div>
+        <div className="stat-card border-l-4 border-cyan-500">
+          <div className="flex items-center gap-3">
+            <Zap className="w-5 h-5 text-cyan-500" />
+            <div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">Skills</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">{skills?.length || 0}</div>
+            </div>
+          </div>
+        </div>
+        <div className="stat-card border-l-4 border-green-500">
+          <div className="flex items-center gap-3">
+            <Puzzle className="w-5 h-5 text-green-500" />
+            <div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">已启用插件</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                {Object.values(config?.enabledPlugins || {}).filter(Boolean).length}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="stat-card border-l-4 border-orange-500">
+          <div className="flex items-center gap-3">
+            <Variable className="w-5 h-5 text-orange-500" />
+            <div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">环境变量</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">{envData.length}</div>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Tabs with Tables */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-md p-6 border border-slate-200 dark:border-slate-700">
         <Tabs items={tabItems} />
       </div>
     </div>

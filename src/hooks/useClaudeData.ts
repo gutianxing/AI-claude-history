@@ -4,7 +4,7 @@ import type { MessagesResponse, MessagesParams, SessionItem, ProjectItem, Histor
 const API_BASE = '/api'
 
 // Fetch history
-export function useHistory() {
+export function useHistory(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['history'],
     queryFn: async () => {
@@ -12,11 +12,12 @@ export function useHistory() {
       if (!res.ok) throw new Error('Failed to fetch history')
       return res.json() as Promise<HistoryEntry[]>
     },
+    enabled: options?.enabled ?? true,
   })
 }
 
 // Fetch projects
-export function useProjects() {
+export function useProjects(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['projects'],
     queryFn: async () => {
@@ -24,6 +25,7 @@ export function useProjects() {
       if (!res.ok) throw new Error('Failed to fetch projects')
       return res.json() as Promise<ProjectItem[]>
     },
+    enabled: options?.enabled ?? true,
   })
 }
 
@@ -135,7 +137,7 @@ export function useAllMessages(params: MessagesParams = {}) {
 }
 
 // Fetch all sessions
-export function useAllSessions() {
+export function useAllSessions(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['all-sessions'],
     queryFn: async () => {
@@ -143,6 +145,7 @@ export function useAllSessions() {
       if (!res.ok) throw new Error('Failed to fetch all sessions')
       return res.json() as Promise<SessionItem[]>
     },
+    enabled: options?.enabled ?? true,
     staleTime: 0, // Always refetch when requested
   })
 }

@@ -4,6 +4,7 @@ import { useActiveSessions } from '../hooks/useClaudeData'
 import { DataTable } from '../components/DataTable'
 import { Tag, Button } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
+import { Activity, Cpu, Terminal, Monitor, Clock } from 'lucide-react'
 import { format } from 'date-fns'
 import type { ColumnsType } from 'antd/es/table'
 
@@ -87,10 +88,22 @@ export default function ActiveSessions() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">运行中窗口</h1>
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/30">
+            <Activity className="w-6 h-6 text-red-600 dark:text-red-400" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">运行中窗口</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              每 5 分钟自动刷新，共 {activeSessions?.length || 0} 个窗口正在运行
+            </p>
+          </div>
+        </div>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-500 dark:text-gray-400">
+          <span className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1">
+            <Clock className="w-4 h-4" />
             上次刷新: {format(lastRefresh, 'HH:mm:ss')}
           </span>
           <Button
@@ -98,47 +111,67 @@ export default function ActiveSessions() {
             icon={<ReloadOutlined />}
             onClick={handleRefresh}
             loading={isLoading}
+            className="bg-green-600 hover:bg-green-700 border-green-600"
           >
             刷新
           </Button>
         </div>
       </div>
 
-      <div className="text-sm text-gray-500 dark:text-gray-400">
-        每 5 分钟自动刷新，共 {activeSessions?.length || 0} 个窗口正在运行
-      </div>
-
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <div className="text-sm text-gray-500 dark:text-gray-400">运行中窗口</div>
-          <div className="text-3xl font-bold text-red-600 mt-1">{activeSessions?.length || 0}</div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <div className="text-sm text-gray-500 dark:text-gray-400">交互式会话</div>
-          <div className="text-3xl font-bold text-green-600 mt-1">
-            {activeSessions?.filter((s: ActiveSession) => s.kind === 'interactive').length || 0}
+        <div className="stat-card border-l-4 border-red-500">
+          <div className="flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-red-100 dark:bg-red-900/30">
+              <Monitor className="w-6 h-6 text-red-600 dark:text-red-400" />
+            </div>
+            <div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">运行中窗口</div>
+              <div className="text-3xl font-bold text-slate-900 dark:text-white">{activeSessions?.length || 0}</div>
+            </div>
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <div className="text-sm text-gray-500 dark:text-gray-400">其他类型</div>
-          <div className="text-3xl font-bold text-orange-600 mt-1">
-            {activeSessions?.filter((s: ActiveSession) => s.kind !== 'interactive').length || 0}
+        <div className="stat-card border-l-4 border-green-500">
+          <div className="flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-green-100 dark:bg-green-900/30">
+              <Terminal className="w-6 h-6 text-green-600 dark:text-green-400" />
+            </div>
+            <div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">交互式会话</div>
+              <div className="text-3xl font-bold text-slate-900 dark:text-white">
+                {activeSessions?.filter((s: ActiveSession) => s.kind === 'interactive').length || 0}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="stat-card border-l-4 border-orange-500">
+          <div className="flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-orange-100 dark:bg-orange-900/30">
+              <Cpu className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+            </div>
+            <div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">其他类型</div>
+              <div className="text-3xl font-bold text-slate-900 dark:text-white">
+                {activeSessions?.filter((s: ActiveSession) => s.kind !== 'interactive').length || 0}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Table */}
-      <DataTable
-        title="窗口列表"
-        columns={columns}
-        dataSource={activeSessions || []}
-        rowKey="pid"
-        pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 个窗口` }}
-        size="middle"
-        bordered
-        scroll={{ y: 500 }}
-      />
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <DataTable
+          title="窗口列表"
+          columns={columns}
+          dataSource={activeSessions || []}
+          rowKey="pid"
+          pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 个窗口` }}
+          size="middle"
+          bordered={false}
+          scroll={{ y: 500 }}
+        />
+      </div>
     </div>
   )
 }

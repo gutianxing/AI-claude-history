@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom'
 import { useHistory } from '../hooks/useClaudeData'
 import { format } from 'date-fns'
 import { DataTable } from '../components/DataTable'
-import { Input, Tag, Button } from 'antd'
+import { Input, Tag, Button, Collapse } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
+import { Terminal, Clock, FolderOpen, Hash } from 'lucide-react'
 import type { ColumnsType } from 'antd/es/table'
 import type { HistoryEntry } from '../types'
 import { getProjectName, truncateSessionId } from '../utils'
@@ -58,11 +59,11 @@ export default function Commands() {
         const isSlashCommand = cmd?.startsWith('/')
         const isMention = cmd?.startsWith('@')
         return (
-          <div>
+          <div className="flex items-center gap-2">
             <Tag color={isSlashCommand ? 'blue' : isMention ? 'purple' : 'default'}>
               {cmd}
             </Tag>
-            <span className="text-sm text-gray-600 ml-2">{display}</span>
+            <span className="text-sm text-slate-600 dark:text-slate-300 truncate">{display}</span>
           </div>
         )
       },
@@ -73,7 +74,11 @@ export default function Commands() {
       key: 'project',
       width: 150,
       render: (project: string) => (
-        <Link to={`/projects/${encodeURIComponent(project)}`} className="text-indigo-600 hover:text-indigo-800 text-xs">
+        <Link
+          to={`/projects/${encodeURIComponent(project)}`}
+          className="flex items-center gap-1 text-slate-600 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-400 text-xs transition-colors"
+        >
+          <FolderOpen className="w-3 h-3" />
           {getProjectName(project)}
         </Link>
       ),
@@ -83,7 +88,12 @@ export default function Commands() {
       dataIndex: 'timestamp',
       key: 'timestamp',
       width: 180,
-      render: (timestamp: number) => format(new Date(timestamp), 'yyyy-MM-dd HH:mm:ss'),
+      render: (timestamp: number) => (
+        <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400 text-sm">
+          <Clock className="w-3 h-3" />
+          {format(new Date(timestamp), 'yyyy-MM-dd HH:mm:ss')}
+        </span>
+      ),
     },
     {
       title: '会话',
@@ -91,7 +101,10 @@ export default function Commands() {
       key: 'sessionId',
       width: 120,
       render: (sessionId: string) => (
-        <Link to={`/sessions/${sessionId}`} className="text-indigo-600 hover:text-indigo-800 text-xs font-mono">
+        <Link
+          to={`/sessions/${sessionId}`}
+          className="text-slate-500 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-400 text-xs font-mono transition-colors"
+        >
           {truncateSessionId(sessionId)}
         </Link>
       ),
@@ -103,24 +116,32 @@ export default function Commands() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">命令历史</h1>
-        <div className="flex items-center gap-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            共 {commandHistory.length} 条命令 (从 {history?.length || 0} 条记录中筛选)
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30">
+            <Terminal className="w-6 h-6 text-purple-600 dark:text-purple-400" />
           </div>
-          <Button
-            type="primary"
-            icon={<ReloadOutlined />}
-            onClick={() => refetch()}
-            loading={isLoading}
-          >
-            刷新
-          </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">命令历史</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              共 {commandHistory.length} 条命令 (从 {history?.length || 0} 条记录中筛选)
+            </p>
+          </div>
         </div>
+        <Button
+          type="primary"
+          icon={<ReloadOutlined />}
+          onClick={() => refetch()}
+          loading={isLoading}
+          className="bg-green-600 hover:bg-green-700 border-green-600"
+        >
+          刷新
+        </Button>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+      {/* Search */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-md p-4 border border-slate-200 dark:border-slate-700">
         <Input
           placeholder="搜索命令..."
           value={searchTerm}
@@ -130,35 +151,56 @@ export default function Commands() {
       </div>
 
       {/* Top Commands */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold mb-4 dark:text-white">命令统计 (Top 12)</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          {topCommands.map(([cmd, count]) => {
-            const isSlashCommand = cmd.startsWith('/')
-            const isMention = cmd.startsWith('@')
-            return (
-              <div key={cmd} className="bg-gray-50 dark:bg-gray-700 rounded p-3 text-center">
-                <div className={`font-mono text-sm truncate ${
-                  isSlashCommand ? 'text-blue-600' : isMention ? 'text-purple-600' : 'text-gray-600 dark:text-gray-300'
-                }`}>
-                  {cmd}
-                </div>
-                <div className="text-lg font-bold text-gray-900 dark:text-white">{count}</div>
+      <Collapse
+        className="bg-white dark:bg-slate-800 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 overflow-hidden"
+        items={[
+          {
+            key: '1',
+            label: (
+              <span className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+                <Hash className="w-5 h-5 text-green-500" />
+                命令统计 (Top 12)
+              </span>
+            ),
+            children: (
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                {topCommands.map(([cmd, count]) => {
+                  const isSlashCommand = cmd.startsWith('/')
+                  const isMention = cmd.startsWith('@')
+                  return (
+                    <div
+                      key={cmd}
+                      className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 text-center border border-slate-200 dark:border-slate-600"
+                    >
+                      <div className={`font-mono text-sm truncate ${
+                        isSlashCommand ? 'text-blue-600 dark:text-blue-400' :
+                        isMention ? 'text-purple-600 dark:text-purple-400' :
+                        'text-slate-600 dark:text-slate-300'
+                      }`}>
+                        {cmd}
+                      </div>
+                      <div className="text-lg font-bold text-slate-900 dark:text-white">{count}</div>
+                    </div>
+                  )
+                })}
               </div>
-            )
-          })}
-        </div>
-      </div>
-
-      <DataTable
-        columns={columns}
-        dataSource={filteredHistory}
-        rowKey={(_, index) => `cmd-${index}`}
-        pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条命令` }}
-        size="middle"
-        bordered
-        scroll={{ y: 500 }}
+            ),
+          },
+        ]}
       />
+
+      {/* Table */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <DataTable
+          columns={columns}
+          dataSource={filteredHistory}
+          rowKey={(_, index) => `cmd-${index}`}
+          pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条命令` }}
+          size="middle"
+          bordered={false}
+          scroll={{ x: 800, y: 'calc(100vh - 450px)' }}
+        />
+      </div>
     </div>
   )
 }

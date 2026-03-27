@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { useAllMessages, useAllSessions, useHistory, useProjects } from '../hooks/useClaudeData'
+import { useAllMessages, useAllSessions, useHistory, useProjects, useStats } from '../hooks/useClaudeData'
 import { format } from 'date-fns'
 import { DataTable } from '../components/DataTable'
-import { Input, Tag, Tabs, Button, Drawer } from 'antd'
+import { Input, Tag, Tabs, Button, Drawer, Spin } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
+import { MessagesSquare, User, Bot, Wrench, FileText, Brain, Clock, FolderOpen } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table'
 import type { ContentBlock, MessageItem, SessionItem, ProjectItem, HistoryEntry } from '../types'
@@ -19,24 +20,50 @@ export default function Messages() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selectedBlock, setSelectedBlock] = useState<ContentBlock | null>(null)
 
+  // Track which tabs have been visited (for lazy loading)
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['messages']))
+
   // Pagination state for messages
   const [pagination, setPagination] = useState({ page: 1, pageSize: 20 })
 
+  // Fetch stats for count display (lightweight)
+  const { data: stats } = useStats()
+
+  // Only fetch messages on initial load (it's paginated)
   const { data: messagesData, isLoading: loadingMessages, isFetching: fetchingMessages, refetch: refetchMessages } = useAllMessages({
     page: pagination.page,
     pageSize: pagination.pageSize,
     search: searchTerm,
     role: roleFilter
   })
-  const { data: sessions, isLoading: loadingSessions, error: errorSessions, refetch: refetchSessions } = useAllSessions()
-  const { data: history, isLoading: loadingHistory, error: errorHistory, refetch: refetchHistory } = useHistory()
-  const { data: projects, isLoading: loadingProjects, error: errorProjects, refetch: refetchProjects } = useProjects()
+
+  // Lazy load other data - only fetch when tab is visited
+  const { data: sessions, isLoading: loadingSessions, refetch: refetchSessions } = useAllSessions({
+    enabled: visitedTabs.has('sessions')
+  })
+  const { data: history, isLoading: loadingHistory, refetch: refetchHistory } = useHistory({
+    enabled: visitedTabs.has('commands')
+  })
+  const { data: projects, isLoading: loadingProjects, refetch: refetchProjects } = useProjects({
+    enabled: visitedTabs.has('projects')
+  })
+
+  // Get counts from stats or loaded data
+  const sessionCount = sessions?.length ?? stats?.totalSessions ?? 0
+  const historyCount = history?.length ?? stats?.totalCommands ?? 0
+  const projectCount = projects?.length ?? stats?.totalProjects ?? 0
+
+  // Mark tab as visited when switched
+  const handleTabChange = (key: string) => {
+    setActiveTab(key)
+    setVisitedTabs(prev => new Set(prev).add(key))
+  }
 
   const handleRefresh = () => {
     refetchMessages()
-    refetchSessions()
-    refetchHistory()
-    refetchProjects()
+    if (visitedTabs.has('sessions')) refetchSessions()
+    if (visitedTabs.has('commands')) refetchHistory()
+    if (visitedTabs.has('projects')) refetchProjects()
   }
 
   // Handle table pagination change
@@ -67,7 +94,7 @@ export default function Messages() {
   const renderContent = (content: string, contentBlocks?: ContentBlock[]) => {
     if (!contentBlocks || contentBlocks.length === 0) {
       return (
-        <div className="truncate text-gray-700 dark:text-gray-300" title={content}>
+        <div className="truncate text-slate-700 dark:text-slate-300" title={content}>
           {content}
         </div>
       )
@@ -79,7 +106,7 @@ export default function Messages() {
           if (block.type === 'text' && block.text) {
             const text = block.text.length > 80 ? block.text.slice(0, 80) + '...' : block.text
             return (
-              <span key={index} className="text-gray-700 dark:text-gray-300 truncate" title={block.text}>
+              <span key={index} className="text-slate-700 dark:text-slate-300 truncate" title={block.text}>
                 {text}
               </span>
             )
@@ -89,10 +116,11 @@ export default function Messages() {
               <Tag
                 key={index}
                 color="orange"
-                className="cursor-pointer hover:opacity-80 flex-shrink-0"
+                className="cursor-pointer hover:opacity-80 flex-shrink-0 flex items-center gap-1"
                 onClick={() => handleBlockClick(block)}
               >
-                💭 思考过程
+                <Brain className="w-3 h-3" />
+                思考过程
               </Tag>
             )
           }
@@ -101,10 +129,11 @@ export default function Messages() {
               <Tag
                 key={index}
                 color="blue"
-                className="cursor-pointer hover:opacity-80 flex-shrink-0"
+                className="cursor-pointer hover:opacity-80 flex-shrink-0 flex items-center gap-1"
                 onClick={() => handleBlockClick(block)}
               >
-                🔧 {block.name || '工具调用'}
+                <Wrench className="w-3 h-3" />
+                {block.name || '工具调用'}
               </Tag>
             )
           }
@@ -113,10 +142,11 @@ export default function Messages() {
               <Tag
                 key={index}
                 color="green"
-                className="cursor-pointer hover:opacity-80 flex-shrink-0"
+                className="cursor-pointer hover:opacity-80 flex-shrink-0 flex items-center gap-1"
                 onClick={() => handleBlockClick(block)}
               >
-                📋 工具结果
+                <FileText className="w-3 h-3" />
+                工具结果
               </Tag>
             )
           }
@@ -134,7 +164,8 @@ export default function Messages() {
       key: 'role',
       width: 80,
       render: (role: string) => (
-        <Tag color={role === 'user' ? 'blue' : 'green'}>
+        <Tag color={role === 'user' ? 'blue' : 'green'} className="flex items-center gap-1">
+          {role === 'user' ? <User className="w-3 h-3" /> : <Bot className="w-3 h-3" />}
           {role === 'user' ? '用户' : '助手'}
         </Tag>
       ),
@@ -152,7 +183,10 @@ export default function Messages() {
       key: 'sessionId',
       width: 120,
       render: (sessionId: string) => (
-        <Link to={`/sessions/${sessionId}`} className="text-indigo-600 hover:text-indigo-800 font-mono text-xs">
+        <Link
+          to={`/sessions/${sessionId}`}
+          className="text-slate-600 dark:text-slate-400 hover:text-green-600 dark:hover:text-green-400 font-mono text-xs transition-colors"
+        >
           {truncateSessionId(sessionId)}
         </Link>
       ),
@@ -162,31 +196,46 @@ export default function Messages() {
       dataIndex: 'project',
       key: 'project',
       width: 120,
-      render: (project: string) => <span className="text-xs text-gray-500 dark:text-gray-400">{getProjectName(project)}</span>,
+      render: (project: string) => (
+        <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+          <FolderOpen className="w-3 h-3" />
+          {getProjectName(project)}
+        </span>
+      ),
     },
     {
       title: '模型',
       dataIndex: 'model',
       key: 'model',
       width: 150,
-      render: (model?: string) => model ? <span className="text-xs text-indigo-600">{model}</span> : '-',
+      render: (model?: string) => model ? (
+        <span className="text-xs text-green-600 dark:text-green-400 font-mono">{model}</span>
+      ) : '-',
     },
     {
       title: '时间',
       dataIndex: 'timestamp',
       key: 'timestamp',
       width: 160,
-      render: (timestamp?: string) => timestamp ? format(new Date(timestamp), 'yyyy-MM-dd HH:mm:ss') : '-',
+      render: (timestamp?: string) => timestamp ? (
+        <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+          <Clock className="w-3 h-3" />
+          {format(new Date(timestamp), 'yyyy-MM-dd HH:mm:ss')}
+        </span>
+      ) : '-',
     },
   ]
 
   // Sessions Tab
-  const filteredSessions = sessions?.filter((s: SessionItem) =>
-    !searchTerm ||
-    s.sessionId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.project.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (s.firstMessage && s.firstMessage.toLowerCase().includes(searchTerm.toLowerCase()))
-  ) || []
+  const filteredSessions = useMemo(() => {
+    if (!sessions) return []
+    return sessions.filter((s: SessionItem) =>
+      !searchTerm ||
+      s.sessionId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.project.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.firstMessage && s.firstMessage.toLowerCase().includes(searchTerm.toLowerCase()))
+    )
+  }, [sessions, searchTerm])
 
   const sessionColumns: ColumnsType<SessionItem> = [
     {
@@ -230,11 +279,14 @@ export default function Messages() {
   ]
 
   // Commands Tab
-  const filteredHistory = history?.filter((entry: HistoryItem) =>
-    !searchTerm ||
-    entry.display.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    entry.project.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || []
+  const filteredHistory = useMemo(() => {
+    if (!history) return []
+    return history.filter((entry: HistoryItem) =>
+      !searchTerm ||
+      entry.display.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      entry.project.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  }, [history, searchTerm])
 
   const commandColumns: ColumnsType<HistoryItem> = [
     {
@@ -275,11 +327,14 @@ export default function Messages() {
   ]
 
   // Projects Tab
-  const filteredProjects = projects?.filter((p: ProjectItem) =>
-    !searchTerm ||
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.path.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || []
+  const filteredProjects = useMemo(() => {
+    if (!projects) return []
+    return projects.filter((p: ProjectItem) =>
+      !searchTerm ||
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.path.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  }, [projects, searchTerm])
 
   const projectColumns: ColumnsType<ProjectItem> = [
     {
@@ -314,6 +369,19 @@ export default function Messages() {
     },
   ]
 
+  // Loading spinner for lazy-loaded tabs
+  const renderTabContent = (content: React.ReactNode, isLoading: boolean, hasData: boolean) => {
+    if (isLoading && !hasData) {
+      return (
+        <div className="text-center py-10">
+          <Spin size="large" />
+          <div className="mt-2 text-gray-500">加载中...</div>
+        </div>
+      )
+    }
+    return content
+  }
+
   const tabItems = [
     {
       key: 'messages',
@@ -334,14 +402,14 @@ export default function Messages() {
           loading={loadingMessages || fetchingMessages}
           size="middle"
           bordered
-          scroll={{ y: 500 }}
+          scroll={{ x: 1000, y: 'calc(100vh - 400px)' }}
         />
       ),
     },
     {
       key: 'sessions',
-      label: `会话 (${sessions?.length || 0})`,
-      children: (
+      label: `会话 (${sessionCount})`,
+      children: renderTabContent(
         <DataTable
           columns={sessionColumns}
           dataSource={filteredSessions}
@@ -349,14 +417,16 @@ export default function Messages() {
           pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 个会话` }}
           size="middle"
           bordered
-          scroll={{ y: 500 }}
-        />
+          scroll={{ x: 800, y: 'calc(100vh - 400px)' }}
+        />,
+        loadingSessions,
+        !!sessions
       ),
     },
     {
       key: 'commands',
-      label: `命令 (${history?.length || 0})`,
-      children: (
+      label: `命令 (${historyCount})`,
+      children: renderTabContent(
         <DataTable
           columns={commandColumns}
           dataSource={filteredHistory}
@@ -364,14 +434,16 @@ export default function Messages() {
           pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条命令` }}
           size="middle"
           bordered
-          scroll={{ y: 500 }}
-        />
+          scroll={{ x: 800, y: 'calc(100vh - 400px)' }}
+        />,
+        loadingHistory,
+        !!history
       ),
     },
     {
       key: 'projects',
-      label: `项目 (${projects?.length || 0})`,
-      children: (
+      label: `项目 (${projectCount})`,
+      children: renderTabContent(
         <DataTable
           columns={projectColumns}
           dataSource={filteredProjects}
@@ -379,33 +451,42 @@ export default function Messages() {
           pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 个项目` }}
           size="middle"
           bordered
-          scroll={{ y: 500 }}
-        />
+          scroll={{ x: 800, y: 'calc(100vh - 400px)' }}
+        />,
+        loadingProjects,
+        !!projects
       ),
     },
   ]
 
-  const isLoading = loadingSessions || loadingHistory || loadingProjects
-  const error = errorSessions || errorHistory || errorProjects
-
-  if (isLoading) return <div className="text-center py-10">加载中...</div>
-  if (error) return <div className="text-red-500">加载失败: {error?.message}</div>
+  if (loadingMessages) return <div className="text-center py-10">加载中...</div>
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">数据浏览</h1>
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+            <MessagesSquare className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">数据浏览</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">浏览消息、会话、命令和项目</p>
+          </div>
+        </div>
         <Button
           type="primary"
           icon={<ReloadOutlined />}
           onClick={handleRefresh}
-          loading={isLoading}
+          loading={loadingMessages || fetchingMessages}
+          className="bg-green-600 hover:bg-green-700 border-green-600"
         >
           刷新
         </Button>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 flex flex-col md:flex-row gap-4">
+      {/* Search & Filters */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-md p-4 flex flex-col md:flex-row gap-4 border border-slate-200 dark:border-slate-700">
         <div className="flex-1">
           <Input
             placeholder="搜索..."
@@ -418,30 +499,30 @@ export default function Messages() {
           <div className="flex gap-2">
             <button
               onClick={() => handleRoleFilterChange('all')}
-              className={`px-4 py-2 rounded-lg text-sm ${
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${
                 roleFilter === 'all'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'
               }`}
             >
               全部
             </button>
             <button
               onClick={() => handleRoleFilterChange('user')}
-              className={`px-4 py-2 rounded-lg text-sm ${
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${
                 roleFilter === 'user'
                   ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'
               }`}
             >
               用户
             </button>
             <button
               onClick={() => handleRoleFilterChange('assistant')}
-              className={`px-4 py-2 rounded-lg text-sm ${
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${
                 roleFilter === 'assistant'
                   ? 'bg-green-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'
               }`}
             >
               助手
@@ -450,17 +531,37 @@ export default function Messages() {
         )}
       </div>
 
-      <Tabs
-        activeKey={activeTab}
-        onChange={setActiveTab}
-        items={tabItems}
-      />
+      {/* Tabs */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <Tabs
+          activeKey={activeTab}
+          onChange={handleTabChange}
+          items={tabItems}
+          className="px-4 pt-2"
+        />
+      </div>
 
+      {/* Detail Drawer */}
       <Drawer
         title={
-          selectedBlock?.type === 'thinking' ? '💭 思考过程' :
-          selectedBlock?.type === 'tool_use' ? `🔧 工具调用: ${selectedBlock.name}` :
-          '📋 工具结果'
+          <div className="flex items-center gap-2">
+            {selectedBlock?.type === 'thinking' ? (
+              <>
+                <Brain className="w-5 h-5 text-orange-500" />
+                思考过程
+              </>
+            ) : selectedBlock?.type === 'tool_use' ? (
+              <>
+                <Wrench className="w-5 h-5 text-blue-500" />
+                工具调用: {selectedBlock.name}
+              </>
+            ) : (
+              <>
+                <FileText className="w-5 h-5 text-green-500" />
+                工具结果
+              </>
+            )}
+          </div>
         }
         placement="right"
         width={600}
@@ -482,12 +583,12 @@ export default function Messages() {
               <>
                 <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
                   <div className="text-sm text-blue-600 dark:text-blue-400 font-medium mb-2">工具名称</div>
-                  <code className="text-sm">{selectedBlock.name || 'unknown'}</code>
+                  <code className="text-sm text-slate-700 dark:text-slate-300">{selectedBlock.name || 'unknown'}</code>
                 </div>
                 {selectedBlock.input && (
-                  <div className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                    <div className="text-sm text-gray-600 dark:text-gray-300 font-medium mb-2">输入参数</div>
-                    <pre className="text-xs bg-gray-800 text-gray-100 p-3 rounded overflow-auto max-h-96">
+                  <div className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-4">
+                    <div className="text-sm text-slate-600 dark:text-slate-300 font-medium mb-2">输入参数</div>
+                    <pre className="text-xs bg-slate-800 text-slate-100 p-3 rounded overflow-auto max-h-96">
                       {JSON.stringify(selectedBlock.input, null, 2)}
                     </pre>
                   </div>
@@ -500,11 +601,11 @@ export default function Messages() {
                 <div className="text-sm text-green-600 dark:text-green-400 font-medium mb-2">结果内容</div>
                 <div className="prose prose-sm max-w-none">
                   {typeof selectedBlock.content === 'string' ? (
-                    <pre className="text-xs bg-gray-800 text-gray-100 p-3 rounded overflow-auto max-h-96 whitespace-pre-wrap">
+                    <pre className="text-xs bg-slate-800 text-slate-100 p-3 rounded overflow-auto max-h-96 whitespace-pre-wrap">
                       {selectedBlock.content}
                     </pre>
                   ) : (
-                    <pre className="text-xs bg-gray-800 text-gray-100 p-3 rounded overflow-auto max-h-96">
+                    <pre className="text-xs bg-slate-800 text-slate-100 p-3 rounded overflow-auto max-h-96">
                       {JSON.stringify(selectedBlock.content, null, 2)}
                     </pre>
                   )}

@@ -223,6 +223,17 @@ function hasAnalysis(sessionId: string): boolean {
   return fs.existsSync(analysisFile)
 }
 
+// CORS support for frontend
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*')
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200)
+  }
+  next()
+})
+
 app.use(express.json({ limit: '50mb' }))
 
 // Helper to read JSONL files
@@ -524,6 +535,12 @@ app.get('/api/stats', (req, res) => {
     const dailyActivity: Record<string, number> = {}
     const commandCounts: Record<string, number> = {}
 
+    // Token statistics
+    let totalInputTokens = 0
+    let totalOutputTokens = 0
+    const tokenByModel: Record<string, { input: number; output: number }> = {}
+    const tokenByDate: Record<string, { input: number; output: number }> = {}
+
     // Process history
     history.forEach((entry: Record<string, unknown>) => {
       const e = entry as { timestamp?: number; project?: string; display?: string }
@@ -554,12 +571,45 @@ app.get('/api/stats', (req, res) => {
       files.forEach(file => {
         const entries = readJsonl(path.join(projectPath, file))
         entries.forEach((entry: Record<string, unknown>) => {
-          const e = entry as { type?: string; message?: { model?: string } }
+          const e = entry as {
+            type?: string
+            timestamp?: string
+            message?: {
+              model?: string
+              usage?: { input_tokens?: number; output_tokens?: number }
+            }
+          }
           if (e.type === 'user' || e.type === 'assistant') {
             totalMessages++
           }
           if (e.message?.model) {
             modelUsage[e.message.model] = (modelUsage[e.message.model] || 0) + 1
+          }
+
+          // Token statistics
+          if (e.message?.usage) {
+            const inputTokens = e.message.usage.input_tokens || 0
+            const outputTokens = e.message.usage.output_tokens || 0
+            totalInputTokens += inputTokens
+            totalOutputTokens += outputTokens
+
+            // Token by model
+            const model = e.message.model || 'unknown'
+            if (!tokenByModel[model]) {
+              tokenByModel[model] = { input: 0, output: 0 }
+            }
+            tokenByModel[model].input += inputTokens
+            tokenByModel[model].output += outputTokens
+
+            // Token by date
+            if (e.timestamp) {
+              const date = new Date(e.timestamp).toISOString().slice(0, 10)
+              if (!tokenByDate[date]) {
+                tokenByDate[date] = { input: 0, output: 0 }
+              }
+              tokenByDate[date].input += inputTokens
+              tokenByDate[date].output += outputTokens
+            }
           }
         })
       })
@@ -576,6 +626,26 @@ app.get('/api/stats', (req, res) => {
       .slice(0, 20)
       .map(([command, count]) => ({ command, count }))
 
+    // Format token by date
+    const tokenTrendArray = Object.entries(tokenByDate)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, tokens]) => ({
+        date,
+        input: tokens.input,
+        output: tokens.output,
+        total: tokens.input + tokens.output
+      }))
+
+    // Format token by model
+    const tokenByModelArray = Object.entries(tokenByModel)
+      .map(([model, tokens]) => ({
+        model,
+        input: tokens.input,
+        output: tokens.output,
+        total: tokens.input + tokens.output
+      }))
+      .sort((a, b) => b.total - a.total)
+
     res.json({
       totalProjects: projectDirs.length,
       totalSessions,
@@ -584,7 +654,15 @@ app.get('/api/stats', (req, res) => {
       modelUsage,
       projectUsage,
       dailyActivity: dailyActivityArray,
-      topCommands
+      topCommands,
+      // Token statistics
+      tokenStats: {
+        totalInputTokens,
+        totalOutputTokens,
+        totalTokens: totalInputTokens + totalOutputTokens,
+        tokenByModel: tokenByModelArray,
+        tokenTrend: tokenTrendArray
+      }
     })
   } catch (error) {
     res.status(500).json({ error: 'Failed to compute stats' })
@@ -618,6 +696,7 @@ app.get('/api/all-sessions', (req, res) => {
       isImported?: boolean
       isFavorite?: boolean
       tags?: string[]
+      models?: string[]
     }> = []
 
     projectDirs.forEach(projectDir => {
@@ -652,6 +731,16 @@ app.get('/api/all-sessions', (req, res) => {
           }
         }
 
+        // Collect models used in this session
+        const modelsSet = new Set<string>()
+        entries.forEach((entry: Record<string, unknown>) => {
+          const e = entry as { message?: { model?: string } }
+          if (e.message?.model) {
+            modelsSet.add(e.message.model)
+          }
+        })
+        const models = Array.from(modelsSet)
+
         allSessions.push({
           sessionId,
           sessionName: sessionNames[sessionId] || '',
@@ -663,7 +752,8 @@ app.get('/api/all-sessions', (req, res) => {
           hasAnalysis: hasAnalysis(sessionId),
           isImported: !!importedSessions[sessionId],
           isFavorite: favorites.includes(sessionId),
-          tags: sessionTags[sessionId] || []
+          tags: sessionTags[sessionId] || [],
+          models
         })
       })
     })
@@ -1517,6 +1607,259 @@ const handleUpdateTags = (req: express.Request, res: express.Response) => {
 
 app.put('/api/sessions/:id/tags', handleUpdateTags)
 app.post('/api/sessions/:id/tags', handleUpdateTags)
+
+// API: Backup all data (descriptions, names, favorites, tags, imported sessions, analyses)
+app.get('/api/backup', (req, res) => {
+  try {
+    ensureDataDir()
+
+    const backup = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      descriptions: readDescriptions(),
+      sessionNames: readSessionNames(),
+      favorites: readFavorites(),
+      sessionTags: readSessionTags(),
+      importedSessions: readImportedSessions(),
+      standaloneTags: readStandaloneTags(),
+      // Include analysis files
+      analyses: {} as Record<string, string>,
+    }
+
+    // Read all analysis files
+    if (fs.existsSync(ANALYSIS_DIR)) {
+      const analysisFiles = fs.readdirSync(ANALYSIS_DIR).filter(f => f.endsWith('.md'))
+      analysisFiles.forEach(file => {
+        const sessionId = file.replace('.md', '')
+        const content = fs.readFileSync(path.join(ANALYSIS_DIR, file), 'utf-8')
+        backup.analyses[sessionId] = content
+      })
+    }
+
+    res.setHeader('Content-Disposition', `attachment; filename="claude-chat-log-backup-${new Date().toISOString().slice(0, 10)}.json"`)
+    res.json(backup)
+  } catch (error) {
+    console.error('Backup error:', error)
+    res.status(500).json({ error: '备份失败' })
+  }
+})
+
+// API: Restore data from backup
+app.post('/api/restore', (req, res) => {
+  try {
+    const backup = req.body
+
+    if (!backup.version || !backup.exportedAt) {
+      return res.status(400).json({ error: '无效的备份文件格式' })
+    }
+
+    ensureDataDir()
+
+    // Restore descriptions
+    if (backup.descriptions) {
+      fs.writeFileSync(DESCRIPTIONS_FILE, JSON.stringify(backup.descriptions, null, 2))
+    }
+
+    // Restore session names
+    if (backup.sessionNames) {
+      fs.writeFileSync(SESSION_NAMES_FILE, JSON.stringify(backup.sessionNames, null, 2))
+    }
+
+    // Restore favorites
+    if (backup.favorites) {
+      fs.writeFileSync(FAVORITES_FILE, JSON.stringify(backup.favorites, null, 2))
+    }
+
+    // Restore session tags
+    if (backup.sessionTags) {
+      fs.writeFileSync(TAGS_FILE, JSON.stringify(backup.sessionTags, null, 2))
+    }
+
+    // Restore imported sessions
+    if (backup.importedSessions) {
+      fs.writeFileSync(IMPORTED_SESSIONS_FILE, JSON.stringify(backup.importedSessions, null, 2))
+    }
+
+    // Restore standalone tags
+    if (backup.standaloneTags) {
+      saveStandaloneTags(backup.standaloneTags)
+    }
+
+    // Restore analyses
+    if (backup.analyses) {
+      Object.entries(backup.analyses).forEach(([sessionId, content]) => {
+        const analysisFile = path.join(ANALYSIS_DIR, `${sessionId}.md`)
+        fs.writeFileSync(analysisFile, content as string)
+      })
+    }
+
+    res.json({
+      success: true,
+      message: '数据恢复成功',
+      stats: {
+        descriptions: Object.keys(backup.descriptions || {}).length,
+        sessionNames: Object.keys(backup.sessionNames || {}).length,
+        favorites: (backup.favorites || []).length,
+        sessionTags: Object.keys(backup.sessionTags || {}).length,
+        analyses: Object.keys(backup.analyses || {}).length,
+      }
+    })
+  } catch (error) {
+    console.error('Restore error:', error)
+    res.status(500).json({ error: '恢复失败' })
+  }
+})
+
+// API: Extract code snippets from all sessions
+app.get('/api/code-snippets', (req, res) => {
+  try {
+    const projectsDir = path.join(CLAUDE_DIR, 'projects')
+    const projectDirs = fs.readdirSync(projectsDir, { withFileTypes: true })
+      .filter(e => e.isDirectory())
+      .map(e => e.name)
+
+    const codeRegex = /```(\w*)\n?([\s\S]*?)```/g
+    const snippets: Array<{
+      id: string
+      sessionId: string
+      project: string
+      language: string
+      code: string
+      timestamp?: string
+      messageId?: string
+    }> = []
+
+    projectDirs.forEach(projectDir => {
+      const projectPath = path.join(projectsDir, projectDir)
+      const files = fs.readdirSync(projectPath).filter(f => f.endsWith('.jsonl'))
+
+      files.forEach(file => {
+        const sessionId = file.replace('.jsonl', '')
+        const filePath = path.join(projectPath, file)
+        const entries = readJsonl(filePath)
+
+        entries.forEach((entry: Record<string, unknown>) => {
+          const e = entry as {
+            type?: string
+            uuid?: string
+            timestamp?: string
+            message?: {
+              role?: string
+              content?: string | Array<{ type: string; text?: string }>
+            }
+          }
+
+          if (e.type === 'assistant' && e.message?.content) {
+            let content = ''
+            if (typeof e.message.content === 'string') {
+              content = e.message.content
+            } else if (Array.isArray(e.message.content)) {
+              content = e.message.content
+                .map((block: { type: string; text?: string }) => {
+                  if (block.type === 'text') return block.text || ''
+                  return ''
+                })
+                .join('\n')
+            }
+
+            // Extract code blocks
+            let match
+            while ((match = codeRegex.exec(content)) !== null) {
+              const language = match[1] || 'plaintext'
+              const code = match[2].trim()
+
+              if (code.length > 10) { // Skip very short snippets
+                snippets.push({
+                  id: `${sessionId}-${e.uuid || Math.random().toString(36).slice(2)}`,
+                  sessionId,
+                  project: projectDir.replace(/-/g, '/').replace(/^C--/, 'C:/'),
+                  language,
+                  code,
+                  timestamp: e.timestamp,
+                  messageId: e.uuid,
+                })
+              }
+            }
+          }
+        })
+      })
+    })
+
+    // Sort by timestamp descending
+    snippets.sort((a, b) => {
+      if (!a.timestamp) return 1
+      if (!b.timestamp) return -1
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    })
+
+    res.json(snippets)
+  } catch (error) {
+    console.error('Code snippets error:', error)
+    res.status(500).json({ error: '获取代码片段失败' })
+  }
+})
+
+// Notification system using SSE
+const notificationClients: Set<express.Response> = new Set()
+
+// API: SSE endpoint for notifications
+app.get('/api/notifications', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.flushHeaders()
+
+  notificationClients.add(res)
+  console.log(`Notification client connected. Total clients: ${notificationClients.size}`)
+
+  // Send initial connection message
+  res.write(`data: ${JSON.stringify({ type: 'connected', message: '已连接到通知服务' })}\n\n`)
+
+  // Handle client disconnect
+  req.on('close', () => {
+    notificationClients.delete(res)
+    console.log(`Notification client disconnected. Total clients: ${notificationClients.size}`)
+  })
+})
+
+// API: Send notification (called by skill)
+app.post('/api/notify', (req, res) => {
+  try {
+    const { title, message, type = 'success', projectPath, projectName } = req.body
+
+    if (!message) {
+      return res.status(400).json({ error: '消息不能为空' })
+    }
+
+    const notification = {
+      id: Date.now().toString(),
+      title: title || '任务完成',
+      message,
+      type, // 'success' | 'error' | 'info' | 'warning'
+      projectPath: projectPath || '',
+      projectName: projectName || '',
+      timestamp: new Date().toISOString()
+    }
+
+    // Broadcast to all connected clients
+    let sentCount = 0
+    notificationClients.forEach(client => {
+      try {
+        client.write(`data: ${JSON.stringify(notification)}\n\n`)
+        sentCount++
+      } catch {
+        // Client might be disconnected
+        notificationClients.delete(client)
+      }
+    })
+
+    console.log(`Notification sent to ${sentCount} clients:`, notification)
+    res.json({ success: true, sentTo: sentCount, notification })
+  } catch (error) {
+    console.error('Notify error:', error)
+    res.status(500).json({ error: '发送通知失败' })
+  }
+})
 
 // Start server - must be after all route definitions
 app.listen(PORT, () => {
